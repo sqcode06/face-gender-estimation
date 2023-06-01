@@ -6,6 +6,8 @@ import time
 import cv2
 import model
 import tensorflow as tf
+import os
+import csv
 
 if __name__ == '__main__':
     arguments = utils.get_arguments()
@@ -19,12 +21,17 @@ if __name__ == '__main__':
     # load model detect faces
     detect_model = MTCNN()
 
-    if arguments.image_path is not None:
-        image_path = arguments.image_path
-    else:
-        video_path = arguments.video_path
+    directory = "..\\validation"
 
-    if image_path is not None:  # case 1: detect image
+    rowlist = []
+
+    for filename in os.listdir(directory):
+        image_path = os.path.join(directory, filename)
+        print(image_path)
+
+        actual_age = filename.split("_")[0]
+        actual_gender = filename.split("_")[1]
+
         img = cv2.imread(image_path)
 
         # detect faces
@@ -37,100 +44,15 @@ if __name__ == '__main__':
         images = (cropped_face - 128.0) / 255.0
         predicted_result = multitask_model.predict(images)
 
-        # draw label and boxes
-        output = utils.draw_labels_and_boxes(img, boxes, predicted_result)
+        if(predicted_result == []):
+            predicted_result = [-1, -1]
+        output = [actual_age, actual_gender]
+        output.append(predicted_result[0])
+        output.append(predicted_result[1])
 
-        # save image
-        cv2.imwrite('test1.png', output)
+        rowlist.append(output)
 
-        # show image
-
-        cv2.imshow('Images', output)
-        if cv2.waitKey(0) & 0xFF == ord('q'):
-            exit(0)
-    elif video_path is not None:
-        # start to the file video stream thread and allow the buffer to
-        # start to fill
-        print('[INFO] starting video file thread....')
-        fvs = FileVideoStream(video_path).start()
-        time.sleep(1.0)
-
-        # start the FPS timer
-        fps = FPS().start()
-
-        fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        out = cv2.VideoWriter('output.avi', fourcc, 20.0, (1280, 720))
-
-        # loop over frames from the video file stream
-        while fvs.more():
-            frame = fvs.read()
-            if frame is None:
-                break
-            height, width = frame.shape[:2]
-
-            # detect faces
-            result = detect_model.detect_faces(frame)
-
-            # cropped face
-            cropped_face, boxes = utils.crop_face(frame, result)
-
-            # predict
-            images = (cropped_face - 128.0) / 255.0
-            predicted_result = multitask_model.predict(images)
-
-            # draw label and boxes
-            frame = utils.draw_labels_and_boxes(frame, boxes, predicted_result)
-
-            # write the flipped frame
-            out.write(frame)
-
-            fps.update()
-
-        fps.stop()
-        print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
-        print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
-
-        # clean up
-        cv2.destroyAllWindows()
-        fvs.stop()
-    else:      # video streaming
-        print('[INFO] sampling frames from camera...')
-        stream = VideoStream(src=0).start()
-        time.sleep(1.0)
-        fps = FPS().start()
-
-        # loop over frames from the video stream
-        while True:
-            frame = stream.read()
-            if frame is None:
-                break
-
-            height, width = frame.shape[:2]
-
-            # detect faces
-            result = detect_model.detect_faces(frame)
-
-            # cropped face
-            cropped_face, boxes = utils.crop_face(frame, result)
-
-            # predict
-            images = (cropped_face - 128.0) / 255.0
-            predicted_result = multitask_model.predict(images)
-
-            # draw label and boxes
-            frame = utils.draw_labels_and_boxes(frame, boxes, predicted_result)
-
-            # show video
-            cv2.imshow('video', frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                exit(0)
-
-            fps.update()
-
-        fps.stop()
-        print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
-        print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
-
-        # clean up
-        cv2.destroyAllWindows()
-        stream.stop()
+    with open('results.csv', 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerows(rowlist)
+    file.close()

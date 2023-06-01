@@ -218,6 +218,7 @@ class Model(object):
             age_label = AGE_DICT[age_prediction_idx[i]]
             gender_label = GENDER_DICT[gender_prediction_idx[i]]
 
-            labels.append((smile_label, age_label, gender_label))
+            labels.append(age_prediction_idx[i])
+            labels.append(gender_prediction_idx[i])
 
         return labels
